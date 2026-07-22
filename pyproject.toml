@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "evalkit"
+version = "1.0.0"
+description = "Reproducible rolling-origin forecasting evaluation with leakage detection and a baseline gate."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Midat Faizov", email = "midat.faizov@gmail.com" }]
+keywords = ["forecasting", "backtesting", "evaluation", "leakage", "time-series", "reproducibility"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Topic :: Scientific/Engineering",
+]
+dependencies = ["numpy>=1.24", "pandas>=2.0", "pyyaml>=6.0"]
+
+[project.urls]
+Homepage = "https://github.com/midat-fx/rolling-backtest-evalkit"
+Issues = "https://github.com/midat-fx/rolling-backtest-evalkit/issues"
+
+[project.scripts]
+evalkit = "evalkit.cli:main"
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "mypy>=1.8", "ruff>=0.4", "coverage>=7", "types-PyYAML"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+# Target 3.12 semantics so numpy 2.x's PEP 695 stubs parse; runtime support is
+# 3.11+ (verified by the pytest matrix). mypy runs once, on 3.12, in CI.
+python_version = "3.12"
+strict = true
+files = ["src"]
+
+[[tool.mypy.overrides]]
+module = ["pandas.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
