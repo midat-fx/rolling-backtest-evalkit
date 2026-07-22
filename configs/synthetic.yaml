@@ -1,0 +1,8 @@
+# Backtest configuration for the synthetic demand panel.
+min_train: 52
+horizon: 4
+step: 4
+season: 52
+ma_window: 4
+ridge_lags: [4, 5, 7, 52]
+ridge_alpha: 1.0
