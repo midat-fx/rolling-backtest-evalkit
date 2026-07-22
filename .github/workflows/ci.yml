@@ -1,0 +1,59 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install -e ".[dev]"
+      - name: Lint (ruff)
+        run: |
+          ruff check src tests
+          ruff format --check src tests
+      - name: Tests + coverage
+        run: |
+          coverage run -m pytest
+          coverage report --fail-under=90
+
+  typecheck:
+    name: mypy --strict (py3.12)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - run: mypy
+
+  gate:
+    name: reproducibility gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e .
+      - name: Data quality
+        run: evalkit quality data/demand.csv
+      - name: Backtest and gate against the committed baseline
+        run: |
+          evalkit run --config configs/synthetic.yaml --data data/demand.csv -o out
+          evalkit gate out/metrics.csv --baseline reports/baseline_metrics.csv
