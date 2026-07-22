@@ -9,7 +9,7 @@ description = "Reproducible rolling-origin forecasting evaluation with leakage d
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
-authors = [{ name = "Midat Faizov", email = "midat.faizov@gmail.com" }]
+authors = [{ name = "Midat Faizov", email = "faizov.midat@gmail.com" }]
 keywords = ["forecasting", "backtesting", "evaluation", "leakage", "time-series", "reproducibility"]
 classifiers = [
   "Programming Language :: Python :: 3",

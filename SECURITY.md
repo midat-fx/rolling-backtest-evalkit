@@ -1,6 +1,6 @@
 # Security Policy
 
-Report any security issue privately to midat.faizov@gmail.com rather than opening
+Report any security issue privately to faizov.midat@gmail.com rather than opening
 a public issue.
 
 ## Threat model
