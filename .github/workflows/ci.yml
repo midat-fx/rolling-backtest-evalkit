@@ -57,3 +57,7 @@ jobs:
         run: |
           evalkit run --config configs/synthetic.yaml --data data/demand.csv -o out
           evalkit gate out/metrics.csv --baseline reports/baseline_metrics.csv
+      - name: Planted leaks must fail the gate
+        run: |
+          evalkit run --config configs/leakage_demo.yaml --data data/demand.csv -o out/leak
+          ! evalkit gate out/leak/metrics.csv --baseline out/leak/metrics.csv

@@ -53,7 +53,9 @@ def cmd_report(args: argparse.Namespace) -> int:
 
 
 def cmd_gate(args: argparse.Namespace) -> int:
-    ok, problems = gate_metrics(args.metrics, args.baseline, atol=args.atol, rtol=args.rtol)
+    ok, problems = gate_metrics(
+        args.metrics, args.baseline, atol=args.atol, rtol=args.rtol, manifest=args.manifest
+    )
     for p in problems:
         print(f"  {p}")
     print(
@@ -95,6 +97,9 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--baseline", required=True)
     sp.add_argument("--atol", type=float, default=1e-4)
     sp.add_argument("--rtol", type=float, default=1e-4)
+    sp.add_argument(
+        "--manifest", default=None, help="run manifest to check (default: next to metrics)"
+    )
 
     return p
 

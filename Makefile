@@ -1,4 +1,4 @@
-.PHONY: install lint typecheck test check data run gate fetch gate-real all clean
+.PHONY: install lint typecheck test check data run gate fetch gate-real leakage-demo all clean
 
 install:
 	pip install -e ".[dev]"
@@ -37,7 +37,13 @@ gate-real:
 	  evalkit gate out/$$d/metrics.csv --baseline reports/baseline_$$d.csv || exit 1; \
 	done
 
-all: check gate
+# Planted leaks must win on WAPE *and* fail the gate; the target inverts the exit code.
+leakage-demo:
+	python examples/leakage_demo.py
+	evalkit run --config configs/leakage_demo.yaml --data data/demand.csv -o out/leak
+	! evalkit gate out/leak/metrics.csv --baseline out/leak/metrics.csv
+
+all: check gate leakage-demo
 
 clean:
 	rm -rf out .coverage .mypy_cache .ruff_cache .pytest_cache
