@@ -137,6 +137,31 @@ def ets_fit_forecast(
     return np.asarray(fc, dtype=np.float64), sse
 
 
+def ets_sse_reference(
+    y: Array, alpha: float, beta: float, gamma: float, season: int = 0, phi: float = 1.0
+) -> float:
+    """Scalar textbook recursion for one parameter set (Holt-Winters additive;
+    ``season=0`` gives Holt). Slow; the vectorised fit is tested against it."""
+    m = season if season and len(y) >= 2 * season else 0
+    if m:
+        level = float(np.mean(y[:m]))
+        slope = (float(np.mean(y[m : 2 * m])) - level) / m
+        seas = [float(v) - level for v in y[:m]]
+    else:
+        level, slope, seas = float(y[0]), float(y[1] - y[0]), [0.0]
+    width = len(seas)
+    sse = 0.0
+    for t in range(m or 1, len(y)):
+        s = seas[t % width]
+        sse += (float(y[t]) - (level + phi * slope + s)) ** 2
+        new_level = alpha * (float(y[t]) - s) + (1 - alpha) * (level + phi * slope)
+        slope = beta * (new_level - level) + (1 - beta) * phi * slope
+        if m:
+            seas[t % width] = gamma * (float(y[t]) - new_level) + (1 - gamma) * s
+        level = new_level
+    return sse
+
+
 def make_ets(trend: bool, season: int = 0, phi: float = 1.0) -> Model:
     def ets(y: Array, promo: Array, origin: int, horizon: int) -> Array:
         if origin < 3:

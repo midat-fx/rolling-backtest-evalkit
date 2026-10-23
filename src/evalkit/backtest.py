@@ -12,6 +12,7 @@ HTML report need; ``run_backtest`` aggregates them to the per-fold table.
 
 from __future__ import annotations
 
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from typing import Any
 
@@ -19,6 +20,7 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 
+from . import leaky  # noqa: F401  (worker processes must see the leak_* models too)
 from .metrics import naive_mae_scale, naive_mse_scale
 from .models import build_models
 
@@ -106,7 +108,19 @@ def forecast_series(
     return y_true, y_hat, scale, scale_mse
 
 
-def backtest_detail(df: pd.DataFrame, config: dict[str, Any]) -> Detail:
+def _forecast_task(
+    task: tuple[Array, Array, list[int], dict[str, Any]],
+) -> tuple[Array, Array, Array, Array]:
+    return forecast_series(*task)
+
+
+def backtest_detail(df: pd.DataFrame, config: dict[str, Any], workers: int = 1) -> Detail:
+    """Forecast every series; ``workers > 1`` fans series out to processes.
+
+    Results come back in series order whatever the worker count, so the output
+    is identical for any ``workers``. Models used with ``workers > 1`` must be
+    registered at import time (as all built-in and ``leak_*`` models are).
+    """
     panel = to_panel(df)
     # Series may differ in length; folds are aligned on each series' end, so
     # fold k tests the same position from the end and longer series simply
@@ -116,12 +130,16 @@ def backtest_detail(df: pd.DataFrame, config: dict[str, Any]) -> Detail:
         n, int(config["min_train"]), int(config["horizon"]), int(config["step"])
     )
     uids = sorted(panel)
-    parts = [
-        forecast_series(
-            panel[u][0], panel[u][1], [o + len(panel[u][0]) - n for o in origins], config
-        )
+    tasks = [
+        (panel[u][0], panel[u][1], [o + len(panel[u][0]) - n for o in origins], config)
         for u in uids
     ]
+    if workers > 1:
+        chunk = max(1, len(tasks) // (workers * 4))
+        with ProcessPoolExecutor(max_workers=workers) as pool:
+            parts = list(pool.map(_forecast_task, tasks, chunksize=chunk))
+    else:
+        parts = [_forecast_task(t) for t in tasks]
     return Detail(
         uids=uids,
         models=list(build_models(config)),
@@ -146,5 +164,5 @@ def aggregate(detail: Detail) -> pd.DataFrame:
     return pd.DataFrame.from_records(records)
 
 
-def run_backtest(df: pd.DataFrame, config: dict[str, Any]) -> pd.DataFrame:
-    return aggregate(backtest_detail(df, config))
+def run_backtest(df: pd.DataFrame, config: dict[str, Any], workers: int = 1) -> pd.DataFrame:
+    return aggregate(backtest_detail(df, config, workers))

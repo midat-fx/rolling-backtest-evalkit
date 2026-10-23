@@ -13,7 +13,6 @@ import numpy.typing as npt
 import pandas as pd
 import yaml
 
-from . import leaky  # noqa: F401  (registers the planted leak_* demo models)
 from .backtest import METRIC_NAMES, aggregate, backtest_detail, rolling_origins, to_panel
 from .dashboard import render_html
 from .leakage import detect_model_future_access, recompute_stable
@@ -87,10 +86,14 @@ def model_leakage_audit(
     return result
 
 
-def run_evaluation(config_path: str, data_path: str, outdir: str) -> dict[str, Any]:
+def run_evaluation(
+    config_path: str, data_path: str, outdir: str, workers: int = 1
+) -> dict[str, Any]:
+    """Backtest, write metrics/report/stats/manifest. ``workers`` only changes
+    speed: outputs and run_id are identical for any value."""
     config = load_config(config_path)
     df = pd.read_csv(data_path)
-    detail = backtest_detail(df, config)
+    detail = backtest_detail(df, config, workers)
     bt = aggregate(detail)
     sig = significance(detail, str(config.get("stats_metric", "mase")))
 
