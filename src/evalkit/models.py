@@ -185,6 +185,8 @@ def seasonal_indices(y: Array, season: int) -> Array | None:
     if season < 2 or n < 3 * season or np.any(y <= 0):
         return None
     d = y - y.mean()
+    if not np.any(d):
+        return None  # constant series: no seasonality, and the ACF is undefined
     acf = np.array([np.sum(d[k:] * d[:-k]) for k in range(1, season + 1)]) / np.sum(d * d)
     limit = 1.645 * np.sqrt((1.0 + 2.0 * np.sum(acf[:-1] ** 2)) / n)
     if abs(acf[-1]) <= limit:

@@ -1,4 +1,4 @@
-.PHONY: install lint typecheck test check data run gate fetch gate-real leakage-demo all clean
+.PHONY: install lint typecheck test check data run gate fetch gate-real leakage-demo coverage mutation all clean
 
 install:
 	pip install -e ".[dev]"
@@ -12,6 +12,14 @@ typecheck:
 
 test:
 	pytest
+
+coverage:
+	coverage run -m pytest
+	coverage report
+
+# Plants 17 small bugs in metrics/stats one at a time; every one must fail a test.
+mutation:
+	python scripts/mutation_check.py
 
 check: lint typecheck test
 
@@ -43,7 +51,7 @@ leakage-demo:
 	evalkit run --config configs/leakage_demo.yaml --data data/demand.csv -o out/leak
 	! evalkit gate out/leak/metrics.csv --baseline out/leak/metrics.csv
 
-all: check gate leakage-demo
+all: check coverage gate leakage-demo mutation
 
 clean:
 	rm -rf out .coverage .mypy_cache .ruff_cache .pytest_cache

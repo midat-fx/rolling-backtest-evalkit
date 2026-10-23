@@ -29,7 +29,18 @@ jobs:
       - name: Tests + coverage
         run: |
           coverage run -m pytest
-          coverage report --fail-under=90
+          coverage report --fail-under=95
+
+  mutation:
+    name: mutation check (metrics + stats)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - run: python scripts/mutation_check.py
 
   typecheck:
     name: mypy --strict (py3.12)
