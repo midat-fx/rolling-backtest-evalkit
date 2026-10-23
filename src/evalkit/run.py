@@ -15,6 +15,7 @@ import yaml
 
 from . import leaky  # noqa: F401  (registers the planted leak_* demo models)
 from .backtest import METRIC_NAMES, aggregate, backtest_detail, rolling_origins, to_panel
+from .dashboard import render_html
 from .leakage import detect_model_future_access, recompute_stable
 from .models import build_models
 from .report import per_model_summary, render_report, significance, write_metrics
@@ -116,6 +117,10 @@ def run_evaluation(config_path: str, data_path: str, outdir: str) -> dict[str, A
         },
     }
     (out / "manifest.json").write_text(json.dumps(manifest, sort_keys=True, indent=2) + "\n")
+    title = f"evalkit · {Path(data_path).stem}"
+    (out / "report.html").write_text(
+        render_html(bt, detail, sig, manifest, title), encoding="utf-8"
+    )
     return manifest
 
 
