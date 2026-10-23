@@ -13,9 +13,9 @@ import numpy.typing as npt
 import pandas as pd
 import yaml
 
-from .backtest import METRIC_NAMES, run_backtest
+from .backtest import METRIC_NAMES, aggregate, backtest_detail
 from .leakage import recompute_stable
-from .report import per_model_summary, render_report, write_metrics
+from .report import per_model_summary, render_report, significance, write_metrics
 
 Array = npt.NDArray[np.float64]
 
@@ -63,12 +63,15 @@ def leakage_self_check(df: pd.DataFrame, config: dict[str, Any]) -> bool:
 def run_evaluation(config_path: str, data_path: str, outdir: str) -> dict[str, Any]:
     config = load_config(config_path)
     df = pd.read_csv(data_path)
-    bt = run_backtest(df, config)
+    detail = backtest_detail(df, config)
+    bt = aggregate(detail)
+    sig = significance(detail, str(config.get("stats_metric", "mase")))
 
     out = Path(outdir)
     out.mkdir(parents=True, exist_ok=True)
     write_metrics(bt, str(out / "metrics.csv"))
-    (out / "report.md").write_text(render_report(bt), encoding="utf-8")
+    (out / "report.md").write_text(render_report(bt, sig), encoding="utf-8")
+    (out / "stats.json").write_text(json.dumps(sig, sort_keys=True, indent=2) + "\n")
 
     checksum = data_checksum(df)
     manifest: dict[str, Any] = {

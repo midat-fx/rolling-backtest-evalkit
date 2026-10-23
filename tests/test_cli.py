@@ -64,3 +64,13 @@ def test_cli_data_and_quality(tmp_path: Path, capsys: pytest.CaptureFixture[str]
     out = tmp_path / "d.csv"
     assert main(["data", "-o", str(out), "--seed", "42"]) == 0
     assert main(["quality", str(out)]) == 0
+
+
+def test_run_writes_significance(tmp_path: Path) -> None:
+    import json
+
+    run_evaluation(CONFIG, DATA, str(tmp_path))
+    sig = json.loads((tmp_path / "stats.json").read_text())
+    assert sig["n_series"] == 40 and sig["metric"] == "mase"
+    assert set(sig["dm"]) == set(sig["avg_rank"]) == set(sig["mean_ci"])
+    assert "## Significance" in (tmp_path / "report.md").read_text()
