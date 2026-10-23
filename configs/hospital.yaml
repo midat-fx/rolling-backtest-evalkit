@@ -1,0 +1,10 @@
+# Monash "hospital": 767 monthly series x 84 months. Monash forecast horizon is 12.
+# Five origins (48, 54, ..., 72), each forecasting the next 12 months.
+min_train: 48
+horizon: 12
+step: 6
+season: 12
+scale_season: 12  # MASE/RMSSE scaled by the in-sample seasonal-naive error, as in M4/Monash
+ma_window: 3
+ridge_lags: [12, 13, 15, 24]
+ridge_alpha: 1.0

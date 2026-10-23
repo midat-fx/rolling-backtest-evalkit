@@ -7,7 +7,7 @@ import sys
 
 import pandas as pd
 
-from . import __version__
+from . import __version__, datasets
 from .datagen import write_csv
 from .quality import check_quality
 from .report import per_model_summary
@@ -17,6 +17,16 @@ from .run import gate_metrics, run_evaluation
 def cmd_data(args: argparse.Namespace) -> int:
     df = write_csv(args.output, seed=args.seed)
     print(f"evalkit data: wrote {args.output} ({len(df)} rows, {df['unique_id'].nunique()} series)")
+    return 0
+
+
+def cmd_fetch(args: argparse.Namespace) -> int:
+    df = datasets.load(args.name, offline=args.offline)
+    out = args.output or f"data/{args.name}.csv"
+    df.to_csv(out, index=False)
+    sha = datasets.DATASETS[args.name].sha256[:12]
+    n_series = df["unique_id"].nunique()
+    print(f"evalkit fetch: wrote {out} ({len(df)} rows, {n_series} series, sha256 {sha} ok)")
     return 0
 
 
@@ -64,6 +74,11 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("-o", "--output", default="data/demand.csv")
     sp.add_argument("--seed", type=int, default=42)
 
+    sp = sub.add_parser("fetch", help="download a public dataset (checksum-verified) to CSV")
+    sp.add_argument("name", choices=sorted(datasets.DATASETS))
+    sp.add_argument("-o", "--output", default=None, help="default: data/<name>.csv")
+    sp.add_argument("--offline", action="store_true", help="use the cache only")
+
     sp = sub.add_parser("quality", help="run data-quality checks")
     sp.add_argument("data")
 
@@ -86,6 +101,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 _HANDLERS = {
     "data": cmd_data,
+    "fetch": cmd_fetch,
     "quality": cmd_quality,
     "run": cmd_run,
     "report": cmd_report,
