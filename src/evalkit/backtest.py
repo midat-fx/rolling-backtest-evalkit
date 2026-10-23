@@ -42,12 +42,17 @@ def rolling_origins(n: int, min_train: int, horizon: int, step: int) -> list[int
 
 def run_backtest(df: pd.DataFrame, config: dict[str, Any]) -> pd.DataFrame:
     panel = to_panel(df)
+    # Series may differ in length; folds are aligned on each series' end, so
+    # fold k tests the same position from the end and longer series simply
+    # train on more history.
     n = min(len(y) for y, _ in panel.values())
     origins = rolling_origins(
         n, int(config["min_train"]), int(config["horizon"]), int(config["step"])
     )
     models = build_models(config)
     horizon = int(config["horizon"])
+    # MASE/RMSSE scale: in-sample naive with this lag (1 = naive, m = seasonal naive).
+    scale_season = int(config.get("scale_season", 1))
 
     records: list[dict[str, Any]] = []
     for fold, origin in enumerate(origins):
@@ -55,11 +60,12 @@ def run_backtest(df: pd.DataFrame, config: dict[str, Any]) -> pd.DataFrame:
             acc: dict[str, list[float]] = {k: [] for k in METRIC_NAMES}
             for uid in sorted(panel):
                 y, promo = panel[uid]
-                y_true = y[origin : origin + horizon]
-                y_hat = mfn(y, promo, origin, horizon)
-                train = y[:origin]
-                scale = naive_mae_scale(train, 1)
-                scale_mse = naive_mse_scale(train, 1)
+                o = origin + len(y) - n
+                y_true = y[o : o + horizon]
+                y_hat = mfn(y, promo, o, horizon)
+                train = y[:o]
+                scale = naive_mae_scale(train, scale_season)
+                scale_mse = naive_mse_scale(train, scale_season)
                 acc["wape"].append(wape(y_true, y_hat))
                 acc["smape"].append(smape(y_true, y_hat))
                 acc["mase"].append(mase(y_true, y_hat, scale))

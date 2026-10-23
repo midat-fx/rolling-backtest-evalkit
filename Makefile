@@ -1,4 +1,4 @@
-.PHONY: install lint typecheck test check data run gate all clean
+.PHONY: install lint typecheck test check data run gate fetch gate-real all clean
 
 install:
 	pip install -e ".[dev]"
@@ -24,6 +24,18 @@ run:
 # Dogfood: the backtest on the committed data must match the committed baseline.
 gate: run
 	evalkit gate out/metrics.csv --baseline reports/baseline_metrics.csv
+
+REAL := hospital tourism_monthly
+
+fetch:
+	for d in $(REAL); do evalkit fetch $$d; done
+
+# Real public data (needs `make fetch` once; archives are SHA-256 verified).
+gate-real:
+	for d in $(REAL); do \
+	  evalkit run --config configs/$$d.yaml --data data/$$d.csv -o out/$$d && \
+	  evalkit gate out/$$d/metrics.csv --baseline reports/baseline_$$d.csv || exit 1; \
+	done
 
 all: check gate
 

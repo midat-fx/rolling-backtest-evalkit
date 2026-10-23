@@ -1,0 +1,11 @@
+# Monash "tourism_monthly": 366 monthly series, 91-333 months. Folds are aligned
+# on each series' end (the shortest series has 91 points), so every series is
+# tested on its last 36 months and longer series train on more history.
+min_train: 55
+horizon: 12
+step: 6
+season: 12
+scale_season: 12  # MASE/RMSSE scaled by the in-sample seasonal-naive error, as in M4/Monash
+ma_window: 3
+ridge_lags: [12, 13, 15, 24]
+ridge_alpha: 1.0
