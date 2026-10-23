@@ -74,3 +74,18 @@ def test_run_writes_significance(tmp_path: Path) -> None:
     assert sig["n_series"] == 40 and sig["metric"] == "mase"
     assert set(sig["dm"]) == set(sig["avg_rank"]) == set(sig["mean_ci"])
     assert "## Significance" in (tmp_path / "report.md").read_text()
+
+
+def test_cli_run_report_and_fatal_quality(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    out = tmp_path / "out"
+    assert main(["run", "--config", CONFIG, "--data", DATA, "-o", str(out), "-j", "2"]) == 0
+    assert "leakage_ok=True" in capsys.readouterr().out
+    assert main(["report", str(out / "metrics.csv")]) == 0
+    assert "moving_average" in capsys.readouterr().out
+    bad = tmp_path / "bad.csv"
+    pd.DataFrame({"unique_id": ["a", "a"], "ds": [0, 0], "y": [1, -1], "promo": [0, 0]}).to_csv(
+        bad, index=False
+    )
+    assert main(["quality", str(bad)]) == 1

@@ -78,6 +78,7 @@ def test_theta_and_seasonal_indices() -> None:
     assert idx is not None and np.isclose(idx.mean(), 1.0)
     assert seasonal_indices(np.arange(1, 97, dtype=float), 12) is None  # trend only
     assert seasonal_indices(y - 1000, 12) is None  # non-positive: no ratio split
+    assert seasonal_indices(np.full(48, 5.0), 12) is None  # constant (found by hypothesis)
     fc = make_theta(12)(y, y, 84, 12)
     assert np.mean(np.abs(fc - y[84:]) / y[84:]) < 0.1
     assert len(make_theta(12)(y, y, 2, 3)) == 3

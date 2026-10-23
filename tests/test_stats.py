@@ -92,3 +92,11 @@ def test_dm_matrix_is_antisymmetric() -> None:
     dm = dm_matrix(loss, ["a", "b", "c"])
     assert dm["a"]["b"].stat == pytest.approx(-dm["b"]["a"].stat)
     assert dm["a"]["b"].pvalue == pytest.approx(dm["b"]["a"].pvalue)
+
+
+def test_bootstrap_ci_uses_two_sided_percentiles() -> None:
+    v = np.random.default_rng(5).normal(10.0, 2.0, 400)
+    m, lo, hi = bootstrap_ci(v, n_boot=4000, alpha=0.05)
+    # Normal theory: the 95% interval of a mean is +-1.96 standard errors.
+    half = 1.96 * v.std() / np.sqrt(v.size)
+    assert (hi - lo) / 2 == pytest.approx(half, rel=0.06)
