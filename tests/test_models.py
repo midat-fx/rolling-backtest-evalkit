@@ -39,28 +39,8 @@ def test_registry_has_all_models() -> None:
         assert len(out) == 4 and np.all(np.isfinite(out))
 
 
-def _ets_sse_scalar(y: np.ndarray, a: float, b: float, g: float, m: int, phi: float) -> float:
-    """Reference: the textbook additive Holt-Winters recursion, one parameter set."""
-    if m:
-        level = float(np.mean(y[:m]))
-        slope = (float(np.mean(y[m : 2 * m])) - level) / m
-        seas = list(y[:m] - level)
-    else:
-        level, slope, seas, m = float(y[0]), float(y[1] - y[0]), [0.0], 1
-    sse = 0.0
-    for t in range(m, len(y)):
-        v = y[t]
-        s = seas[t % m]
-        sse += (v - (level + phi * slope + s)) ** 2
-        new_level = a * (v - s) + (1 - a) * (level + phi * slope)
-        slope = b * (new_level - level) + (1 - b) * phi * slope
-        seas[t % m] = g * (v - new_level) + (1 - g) * s
-        level = new_level
-    return sse
-
-
 def test_vectorised_ets_grid_matches_scalar_recursion() -> None:
-    from evalkit.models import ALPHAS, BETAS, GAMMAS, ets_fit_forecast
+    from evalkit.models import ALPHAS, BETAS, GAMMAS, ets_fit_forecast, ets_sse_reference
 
     rng = np.random.default_rng(1)
     t = np.arange(60, dtype=float)
@@ -70,7 +50,9 @@ def test_vectorised_ets_grid_matches_scalar_recursion() -> None:
     assert len(grid) == sse.size
     for i in (0, 7, 123, len(grid) - 1):
         a, b, g = grid[i]
-        assert np.isclose(sse[i], _ets_sse_scalar(y, a, b, g, 12, 0.9))
+        assert np.isclose(sse[i], ets_sse_reference(y, a, b, g, 12, 0.9))
+    _, sse_holt = ets_fit_forecast(y, 6, trend=True)
+    assert np.isclose(sse_holt[3], ets_sse_reference(y, ALPHAS[0], BETAS[3], 0.0))
 
 
 def test_ets_variants_on_clean_signals() -> None:

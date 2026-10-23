@@ -40,7 +40,7 @@ def cmd_quality(args: argparse.Namespace) -> int:
 
 
 def cmd_run(args: argparse.Namespace) -> int:
-    manifest = run_evaluation(args.config, args.data, args.output)
+    manifest = run_evaluation(args.config, args.data, args.output, workers=args.workers)
     print(f"evalkit run: run_id={manifest['run_id']} leakage_ok={manifest['leakage_ok']}")
     print(
         f"evalkit run: wrote {args.output}/metrics.csv, report.md, report.html, "
@@ -91,6 +91,9 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--config", required=True)
     sp.add_argument("--data", required=True)
     sp.add_argument("-o", "--output", default="reports")
+    sp.add_argument(
+        "-j", "--workers", type=int, default=1, help="processes for the backtest (output unchanged)"
+    )
 
     sp = sub.add_parser("report", help="print median metrics by model")
     sp.add_argument("metrics", help="a metrics.csv")
