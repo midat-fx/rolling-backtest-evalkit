@@ -8,3 +8,5 @@ scale_season: 12  # MASE/RMSSE scaled by the in-sample seasonal-naive error, as 
 ma_window: 3
 ridge_lags: [12, 13, 15, 24]
 ridge_alpha: 1.0
+models: [naive, seasonal_naive, moving_average, drift, seasonal_drift, ridge_lags,
+         ses, holt, holt_damped, holt_winters, theta]
