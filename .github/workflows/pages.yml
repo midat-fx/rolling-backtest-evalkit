@@ -1,0 +1,57 @@
+name: pages
+
+# Builds the HTML reports from the public datasets and publishes them to
+# GitHub Pages. Datasets are downloaded and SHA-256 verified by `evalkit fetch`.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e .
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/evalkit
+          key: evalkit-datasets-${{ hashFiles('src/evalkit/datasets.py') }}
+      - name: Fetch public datasets (checksum-verified)
+        run: make fetch
+      - name: Backtests
+        run: |
+          evalkit run --config configs/synthetic.yaml --data data/demand.csv -o out/synthetic
+          evalkit run --config configs/hospital.yaml --data data/hospital.csv -o out/hospital
+          evalkit run --config configs/tourism_monthly.yaml --data data/tourism_monthly.csv -o out/tourism_monthly
+          evalkit run --config configs/leakage_demo.yaml --data data/demand.csv -o out/leakage_demo
+      - name: Gate real-data runs against committed baselines
+        run: |
+          evalkit gate out/hospital/metrics.csv --baseline reports/baseline_hospital.csv
+          evalkit gate out/tourism_monthly/metrics.csv --baseline reports/baseline_tourism_monthly.csv
+      - run: python scripts/build_site.py site out/hospital out/tourism_monthly out/synthetic out/leakage_demo
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

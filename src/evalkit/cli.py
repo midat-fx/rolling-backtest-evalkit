@@ -42,7 +42,10 @@ def cmd_quality(args: argparse.Namespace) -> int:
 def cmd_run(args: argparse.Namespace) -> int:
     manifest = run_evaluation(args.config, args.data, args.output)
     print(f"evalkit run: run_id={manifest['run_id']} leakage_ok={manifest['leakage_ok']}")
-    print(f"evalkit run: wrote {args.output}/metrics.csv, report.md, manifest.json")
+    print(
+        f"evalkit run: wrote {args.output}/metrics.csv, report.md, report.html, "
+        "stats.json, manifest.json"
+    )
     return 0
 
 
