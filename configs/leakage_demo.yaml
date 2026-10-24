@@ -1,0 +1,10 @@
+# Honest models next to three planted leaks (evalkit/leaky.py), on the
+# synthetic panel. Expect the leaks to win on WAPE and the gate to fail.
+min_train: 52
+horizon: 4
+step: 4
+season: 52
+ma_window: 4
+ridge_lags: [4, 5, 7, 52]
+ridge_alpha: 1.0
+models: [naive, ridge_lags, theta, leak_global_norm, leak_centered_window, leak_target_feature]
