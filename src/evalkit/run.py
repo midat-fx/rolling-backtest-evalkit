@@ -13,9 +13,11 @@ import numpy.typing as npt
 import pandas as pd
 import yaml
 
-from .backtest import METRIC_NAMES, run_backtest
-from .leakage import recompute_stable
-from .report import per_model_summary, render_report, write_metrics
+from .backtest import METRIC_NAMES, aggregate, backtest_detail, rolling_origins, to_panel
+from .dashboard import render_html
+from .leakage import detect_model_future_access, recompute_stable
+from .models import build_models
+from .report import per_model_summary, render_report, significance, write_metrics
 
 Array = npt.NDArray[np.float64]
 
@@ -60,22 +62,55 @@ def leakage_self_check(df: pd.DataFrame, config: dict[str, Any]) -> bool:
     return recompute_stable(_lag_feature_fn(lags), y, split)
 
 
-def run_evaluation(config_path: str, data_path: str, outdir: str) -> dict[str, Any]:
+def model_leakage_audit(
+    df: pd.DataFrame, config: dict[str, Any], n_series: int = 3
+) -> dict[str, bool]:
+    """model_future_access on every configured model: True = the model leaked.
+
+    Checked on the first ``n_series`` series at the first, middle and last
+    origin (early origins can hide a leak behind a short-history fallback).
+    """
+    panel = to_panel(df)
+    n = min(len(y) for y, _ in panel.values())
+    horizon = int(config["horizon"])
+    origins = rolling_origins(n, int(config["min_train"]), horizon, int(config["step"]))
+    probe = sorted({origins[0], origins[len(origins) // 2], origins[-1]}) if origins else []
+    result: dict[str, bool] = {}
+    for name, model in build_models(config).items():
+        result[name] = any(
+            detect_model_future_access(model, y, promo, o + len(y) - n, horizon).leaked
+            for uid in sorted(panel)[:n_series]
+            for y, promo in [panel[uid]]
+            for o in probe
+        )
+    return result
+
+
+def run_evaluation(
+    config_path: str, data_path: str, outdir: str, workers: int = 1
+) -> dict[str, Any]:
+    """Backtest, write metrics/report/stats/manifest. ``workers`` only changes
+    speed: outputs and run_id are identical for any value."""
     config = load_config(config_path)
     df = pd.read_csv(data_path)
-    bt = run_backtest(df, config)
+    detail = backtest_detail(df, config, workers)
+    bt = aggregate(detail)
+    sig = significance(detail, str(config.get("stats_metric", "mase")))
 
     out = Path(outdir)
     out.mkdir(parents=True, exist_ok=True)
     write_metrics(bt, str(out / "metrics.csv"))
-    (out / "report.md").write_text(render_report(bt), encoding="utf-8")
+    (out / "report.md").write_text(render_report(bt, sig), encoding="utf-8")
+    (out / "stats.json").write_text(json.dumps(sig, sort_keys=True, indent=2) + "\n")
 
     checksum = data_checksum(df)
+    audit = model_leakage_audit(df, config)
     manifest: dict[str, Any] = {
         "run_id": run_id(config, checksum),
         "config": config,
         "data_checksum": checksum,
-        "leakage_ok": leakage_self_check(df, config),
+        "leakage_ok": leakage_self_check(df, config) and not any(audit.values()),
+        "leaky_models": sorted(m for m, leaked in audit.items() if leaked),
         "folds": int(bt["fold"].nunique()),
         "models": sorted(bt["model"].unique().tolist()),
         "versions": {
@@ -85,6 +120,10 @@ def run_evaluation(config_path: str, data_path: str, outdir: str) -> dict[str, A
         },
     }
     (out / "manifest.json").write_text(json.dumps(manifest, sort_keys=True, indent=2) + "\n")
+    title = f"evalkit · {Path(data_path).stem}"
+    (out / "report.html").write_text(
+        render_html(bt, detail, sig, manifest, title), encoding="utf-8"
+    )
     return manifest
 
 
@@ -108,9 +147,25 @@ def sanity_best_beats_naive(metrics_csv: str) -> tuple[bool, str]:
     )
 
 
+def gate_manifest(manifest_path: str) -> list[str]:
+    """Problems recorded in a run manifest (currently: any detected leakage)."""
+    manifest = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
+    if manifest.get("leakage_ok", True):
+        return []
+    leaky_models = manifest.get("leaky_models", [])
+    return [f"leakage: leakage_ok=false in {manifest_path} (leaky models: {leaky_models})"]
+
+
 def gate_metrics(
-    current_csv: str, baseline_csv: str, atol: float = 1e-4, rtol: float = 1e-4
+    current_csv: str,
+    baseline_csv: str,
+    atol: float = 1e-4,
+    rtol: float = 1e-4,
+    manifest: str | None = None,
 ) -> tuple[bool, list[str]]:
+    """Compare metrics to a baseline, run the naive sanity check, and fail on
+    leakage recorded in the run manifest (``manifest``, or the manifest.json
+    next to ``current_csv`` when present)."""
     cur = pd.read_csv(current_csv)
     base = pd.read_csv(baseline_csv)
     problems: list[str] = []
@@ -130,4 +185,8 @@ def gate_metrics(
     ok_h, detail = sanity_best_beats_naive(current_csv)
     if not ok_h:
         problems.append(f"sanity: no trained model beats naive ({detail})")
+    sibling = Path(current_csv).with_name("manifest.json")
+    path = manifest or (str(sibling) if sibling.exists() else None)
+    if path is not None:
+        problems += gate_manifest(path)
     return len(problems) == 0, problems

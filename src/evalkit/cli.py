@@ -7,7 +7,7 @@ import sys
 
 import pandas as pd
 
-from . import __version__
+from . import __version__, datasets
 from .datagen import write_csv
 from .quality import check_quality
 from .report import per_model_summary
@@ -17,6 +17,16 @@ from .run import gate_metrics, run_evaluation
 def cmd_data(args: argparse.Namespace) -> int:
     df = write_csv(args.output, seed=args.seed)
     print(f"evalkit data: wrote {args.output} ({len(df)} rows, {df['unique_id'].nunique()} series)")
+    return 0
+
+
+def cmd_fetch(args: argparse.Namespace) -> int:
+    df = datasets.load(args.name, offline=args.offline)
+    out = args.output or f"data/{args.name}.csv"
+    df.to_csv(out, index=False)
+    sha = datasets.DATASETS[args.name].sha256[:12]
+    n_series = df["unique_id"].nunique()
+    print(f"evalkit fetch: wrote {out} ({len(df)} rows, {n_series} series, sha256 {sha} ok)")
     return 0
 
 
@@ -30,9 +40,12 @@ def cmd_quality(args: argparse.Namespace) -> int:
 
 
 def cmd_run(args: argparse.Namespace) -> int:
-    manifest = run_evaluation(args.config, args.data, args.output)
+    manifest = run_evaluation(args.config, args.data, args.output, workers=args.workers)
     print(f"evalkit run: run_id={manifest['run_id']} leakage_ok={manifest['leakage_ok']}")
-    print(f"evalkit run: wrote {args.output}/metrics.csv, report.md, manifest.json")
+    print(
+        f"evalkit run: wrote {args.output}/metrics.csv, report.md, report.html, "
+        "stats.json, manifest.json"
+    )
     return 0
 
 
@@ -43,7 +56,9 @@ def cmd_report(args: argparse.Namespace) -> int:
 
 
 def cmd_gate(args: argparse.Namespace) -> int:
-    ok, problems = gate_metrics(args.metrics, args.baseline, atol=args.atol, rtol=args.rtol)
+    ok, problems = gate_metrics(
+        args.metrics, args.baseline, atol=args.atol, rtol=args.rtol, manifest=args.manifest
+    )
     for p in problems:
         print(f"  {p}")
     print(
@@ -64,6 +79,11 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("-o", "--output", default="data/demand.csv")
     sp.add_argument("--seed", type=int, default=42)
 
+    sp = sub.add_parser("fetch", help="download a public dataset (checksum-verified) to CSV")
+    sp.add_argument("name", choices=sorted(datasets.DATASETS))
+    sp.add_argument("-o", "--output", default=None, help="default: data/<name>.csv")
+    sp.add_argument("--offline", action="store_true", help="use the cache only")
+
     sp = sub.add_parser("quality", help="run data-quality checks")
     sp.add_argument("data")
 
@@ -71,6 +91,9 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--config", required=True)
     sp.add_argument("--data", required=True)
     sp.add_argument("-o", "--output", default="reports")
+    sp.add_argument(
+        "-j", "--workers", type=int, default=1, help="processes for the backtest (output unchanged)"
+    )
 
     sp = sub.add_parser("report", help="print median metrics by model")
     sp.add_argument("metrics", help="a metrics.csv")
@@ -80,12 +103,16 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--baseline", required=True)
     sp.add_argument("--atol", type=float, default=1e-4)
     sp.add_argument("--rtol", type=float, default=1e-4)
+    sp.add_argument(
+        "--manifest", default=None, help="run manifest to check (default: next to metrics)"
+    )
 
     return p
 
 
 _HANDLERS = {
     "data": cmd_data,
+    "fetch": cmd_fetch,
     "quality": cmd_quality,
     "run": cmd_run,
     "report": cmd_report,

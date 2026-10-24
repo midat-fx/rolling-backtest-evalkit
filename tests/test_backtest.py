@@ -18,3 +18,16 @@ def test_backtest_shape_and_determinism() -> None:
     assert list(a.columns) == ["fold", "model"] + METRIC_NAMES
     assert a["model"].nunique() == 5
     assert a.equals(b)  # deterministic
+
+
+def test_scale_season_sets_the_mase_denominator() -> None:
+    import numpy as np
+
+    from evalkit.backtest import backtest_detail
+
+    df = generate(seed=3, n_sku=2, n_store=1, n_weeks=60)
+    cfg = {"min_train": 40, "horizon": 4, "step": 8, "season": 52, "models": ["naive"]}
+    for season in (1, 4):
+        d = backtest_detail(df, {**cfg, "scale_season": season})
+        y = df[df["unique_id"] == d.uids[0]]["y"].to_numpy(dtype=float)[:40]
+        assert d.scale[0, 0] == np.mean(np.abs(y[season:] - y[:-season]))
